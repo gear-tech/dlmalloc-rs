@@ -25,7 +25,8 @@ use core::ptr;
 
 use crate::Allocator;
 
-// TODO: documentation?
+/// Configuration for the dlmalloc allocator.
+// TODO: fields documentation?
 pub struct DlmallocConfig {
     granularity: usize,
     trim_threshold: usize,
@@ -33,6 +34,7 @@ pub struct DlmallocConfig {
 }
 
 impl DlmallocConfig {
+    /// Creates a new configuration
     pub const fn new() -> Self {
         Self {
             granularity: 64 * 1024,
