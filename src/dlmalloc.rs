@@ -250,11 +250,12 @@ impl<A: Allocator> Dlmalloc<A> {
         //                                `max_request` will not be honored
         //   + self.top_foot_size()
         //   + self.malloc_alignment()
-        //   + DEFAULT_GRANULARITY
+        //   + granularity
         // ==
         //   usize::MAX
+        let granularity = self.config.granularity.get();
         let min_sys_alloc_space =
-            ((!0 - (self.config.granularity + self.top_foot_size() + self.malloc_alignment()) + 1)
+            ((!0 - (granularity + self.top_foot_size() + self.malloc_alignment()) + 1)
                 & !self.malloc_alignment())
                 - self.chunk_overhead()
                 + 1;
@@ -449,7 +450,7 @@ impl<A: Allocator> Dlmalloc<A> {
         // keep in sync with max_request
         let asize = align_up(
             size + self.top_foot_size() + self.malloc_alignment(),
-            self.config.granularity,
+            self.config.granularity.get(),
         );
 
         let (tbase, tsize, flags) = self.system_allocator.alloc(asize);
@@ -626,7 +627,7 @@ impl<A: Allocator> Dlmalloc<A> {
 
         // Keep the old chunk if it's big enough but not too big
         if oldsize >= nb + mem::size_of::<usize>()
-            && (oldsize - nb) <= (self.config.granularity << 1)
+            && (oldsize - nb) <= (self.config.granularity.get() << 1)
         {
             return oldp;
         }
@@ -1362,7 +1363,7 @@ impl<A: Allocator> Dlmalloc<A> {
         if pad < self.max_request() && !self.top.is_null() {
             pad += self.top_foot_size();
             if self.topsize > pad {
-                let unit = self.config.granularity;
+                let unit = self.config.granularity.get();
                 let extra = ((self.topsize - pad + unit - 1) / unit - 1) * unit;
                 let sp = self.segment_holding(self.top.cast());
                 debug_assert!(!sp.is_null());
