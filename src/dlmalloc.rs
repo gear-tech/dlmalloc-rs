@@ -21,6 +21,7 @@ macro_rules! debug_assert_eq {
 
 use core::cmp;
 use core::mem;
+use core::num::NonZeroUsize;
 use core::ptr;
 
 use crate::Allocator;
@@ -28,16 +29,52 @@ use crate::Allocator;
 /// Configuration for the dlmalloc allocator.
 // TODO: fields documentation?
 pub struct DlmallocConfig {
-    granularity: usize,
-    trim_threshold: usize,
-    max_release_check_rate: usize,
+    /// The unit for allocating and deallocating memory from the system.
+    ///
+    /// Systems with mmap tend to either require or encourage larger granularities.
+    /// You can increase this value to prevent system allocation functions to be called so
+    /// often, especially if they are slow. The value must be at least one
+    /// page and must be a power of two.
+    pub granularity: NonZeroUsize,
+    /// The maximum amount of unused top-most memory to keep
+    /// before releasing in [`Dlmalloc::free`](crate::Dlmalloc::free).
+    ///
+    /// As a rough guide, you might set to a value close to the
+    /// average size of a process (program) running on your system.
+    /// Releasing this much memory would allow such a process to run in
+    /// memory. Generally, it is worth tuning trim thresholds when a
+    /// program undergoes phases where several large chunks are allocated
+    /// and released in ways that can reuse each other's storage, perhaps
+    /// mixed with phases where there are no such chunks at all. The trim
+    /// value must be greater than page size to have any useful effect. To
+    /// disable trimming completely, you can set to [`usize::MAX`].
+    ///
+    /// Note that the trick
+    /// some people use of mallocing a huge space and then freeing it at
+    /// program startup, in an attempt to reserve system memory, doesn't
+    /// have the intended effect under automatic trimming, since that memory
+    /// will immediately be returned to the system.
+    pub trim_threshold: usize,
+    /// The number of consolidated frees between checks to release unused segments when freeing.
+    ///
+    /// When using non-contiguous segments, checking only for topmost space
+    /// doesn't always suffice to trigger trimming.
+    /// To compensate for this, [`Dlmalloc::free`](crate::Dlmalloc::free) will,
+    /// with a period of this field's value (or the current number of segments, if greater)
+    /// try to release unused segments to the OS when freeing chunks that result in
+    /// consolidation. The best value for this parameter is a compromise
+    /// between slowing down frees with relatively costly checks that
+    /// rarely trigger versus holding on to unused memory. To effectively
+    /// disable, set to [`usize::MAX`]. This may lead to a very slight speed
+    /// improvement at the expense of carrying around more memory.
+    pub max_release_check_rate: usize,
 }
 
 impl DlmallocConfig {
     /// Creates a new configuration
     pub const fn new() -> Self {
         Self {
-            granularity: 64 * 1024,
+            granularity: NonZeroUsize::new(64 * 1024).unwrap(),
             trim_threshold: 2 * 1024 * 1024,
             max_release_check_rate: 4095,
         }
